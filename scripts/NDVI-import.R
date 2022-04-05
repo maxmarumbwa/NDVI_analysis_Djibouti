@@ -23,13 +23,15 @@ plot(shp)
 ###-----Method 2
 #TO avoid the following error add raster:: before the fn eg   raster::crop(s, raster::extent(cal_mask))
 #Error in (function (classes, fdef, mtable)  :  unable to find an inherited method for function 'crop' for signature '"RasterStack"
-flist <- list.files(here("data","ndvi"), pattern = "*.tif$")
+flist <- list.files(here("data","ndvi"),full.names = FALSE,  pattern = "*.tif$")
 head(flist)
+flist_path <- list.files(here("data","ndvi"),full.names = TRUE,  pattern = "*.tif$")
+head(flist_path)
 # "DJ_MODAPE10_2002-07-21.tif" "DJ_MODAPE10_2002-08-01.tif" "DJ_MODAPE10_2002-08-11.tif"
 
 # Convert file list to df and converT to date format
-df_ndvi <- data.frame(img = flist)
-df_ndvi$date_img <- gsub("DJ_MODAPE10_", " ", df_ndvi$img )
+df_ndvi <- data.frame(img_path =flist_path,img_date = flist)
+df_ndvi$date_img <- gsub("DJ_MODAPE10_", " ", df_ndvi$img_date)
 df_ndvi$date_img <- gsub(".tif", " ", df_ndvi$date_img)
 df_ndvi[['date_img']] <- as.POSIXct(df_ndvi[['date_img']],format = "%Y-%m-%d")
 
@@ -55,9 +57,73 @@ df_ndvi_2$year <- as.integer(df_ndvi_2$year)
 #       month %in%  3:5  ~ "Spring",  TRUE ~ "Summer"))
 
 ###### Create files for each year ###### 
-ndvi_major_minor_season <-split(df_ndvi_2,list(df_ndvi_2$year,df_ndvi_2$season))
-head(ndvi_full_season)
-ndvi_full_season <-split(df_ndvi_2,list(df_ndvi_2$year,df_ndvi_2$season_full))
+ndvi_major_minor_season <-split(df_ndvi_2,list(df_ndvi_2$year,df_ndvi_2$season, df_ndvi_2$img_path))
+head(ndvi_major_minor_season)
+ndvi_full_season <-split(df_ndvi_2,list(df_ndvi_2$year,df_ndvi_2$season_full, df_ndvi_2$img_path))
+
+linelist_split <- df_ndvi_2 %>% 
+  group_split(year,season_full)
+linelist_split[2]
+
+# extract group_keys() as a dataframe
+groupings <- df_ndvi_2 %>% 
+  group_by(year, season_full) %>%       
+  group_keys()
+
+# Combine into one name value 
+names(linelist_split) <- groupings %>% 
+  mutate(across(everything(), replace_na, "Missing")) %>%  # replace NA with "Missing" in all columns
+  unite("combined", sep = "-") %>%                         # Unite all column values into one
+  setNames(NULL) %>% 
+  as_vector() %>% 
+  as.list()
+groupings      # show unique groupings
+
+## Export as Excel sheets
+linelist_split %>% 
+  writexl::write_xlsx(path = here("out", "File_path_df.xlsx"))
+
+#--------------Get the colum with the img path---------------------------
+z=linelist_split %>% lapply(., "[", , 'img_path')
+z
+  #$`2022-feb_Oct`
+# A tibble: 4 x 1
+# img_path                                                                                                        
+# <chr>                                                                                                           
+#   1 C:/Users/Farai.marumbwa/OneDrive - World Food Programme/ARC_WORK/TASKS-TSD and RD/NDVI_analysis_Djibouti/data/n~
+#   2 C:/Users/Farai.marumbwa/OneDrive - World Food Programme/ARC_WORK/TASKS-TSD and RD/NDVI_analysis_Djibouti/data/n~
+#   $`2022-Missing`
+# # A tibble: 3 x 1
+# img_path                                                                                                        
+# <chr>                                                                                                           
+#   1 C:/Users/Farai.marumbwa/OneDrive - World Food Programme/ARC_WORK/TASKS-TSD and RD/NDVI_analysis_Djibouti/data/n~
+
+#--------------create raster stack based on the new list---------------------------
+> stack(a[[1]][[1]])
+# class      : RasterStack 
+# dimensions : 301, 301, 90601, 10  (nrow, ncol, ncell, nlayers)
+# resolution : 0.01, 0.01  (x, y)
+# extent     : 40.99, 44, 9.99, 13  (xmin, xmax, ymin, ymax)
+# crs        : +proj=longlat +datum=WGS84 +no_defs 
+# names      : DJ_MODAPE10_2002.07.21, DJ_MODAPE10_2002.08.01, DJ_MODAPE10_2002.08.11, DJ_MODAPE10_2002.08.21, DJ_MODAPE10_2002.09.01, DJ_MODAPE10_2002.09.11, DJ_MODAPE10_2002.09.21, DJ_MODAPE10_2002.10.01, DJ_MODAPE10_2002.10.11, DJ_MODAPE10_2002.10.21 
+
+# --------only save one raster
+b=list()
+i=1
+for (i in 1:20){
+ b= stack(a[[i]][[i]])
+ i=i+1
+}
+
+
+#------------------ Select the first 27 items of the first col
+a=lapply(linelist_split, "[", 1:27, 1)
+b=as.data.frame(a)  
+write.csv(b,file="b.csv")
+#----------Convert to df-------------
+#purrr::map_df(list_of_lists, tibble::as_tibble)
+
+
 
 #create a raster stack and mask and calculate seasonal NDVI
 # calculate the seasonal totals #sum_2021 <- calc(r2021, function(x) sum(x, na.rm = TRUE))
@@ -67,6 +133,19 @@ r2007v<- stack(paste0(wd, f_2007$img)) %>% raster::crop(raster::extent(inshp)) %
 plot(r2007v)
 
 f_2010 <- df_ndvi_2 %>% filter(year == 2010 & season== "main season" )
+
+# Function to filter and create raster stack from df / split raster into list and create stack
+stack_main_season <- function(yr, seas){
+  f_2010 <- df_ndvi_2 %>% filter(year == yr & season== seas )
+  rstack <- stack(f_2010$img)
+  return(rstack)
+}
+a=stack_main_season(2007, "main season")
+plot(a)
+
+
+
+
 
 
 # Processing list
