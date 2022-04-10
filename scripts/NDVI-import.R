@@ -125,13 +125,22 @@ season_avg[season_avg > 0.1]<- NA # Set pixels outside the mask to null
 summary(season_ndvi)
 summary(season_avg)
 
-# Save the seasonal avg and the longterm avg ndvi
+#-------------------- Save the seasonal avg and the longterm avg ndvi ------------------------#
+#-------------------- Save the seasonal avg and the longterm avg ndvi ------------------------#
 raster::writeRaster(season_avg, filename= here("out", "tif","NDVI_max_Feb_Jun_2003_2021.tif"), format="GTiff", bylayer=TRUE, overwrite=TRUE)
-raster::writeRaster(season_ndvi, filename=here("out", "tif","NDVI_Feb_June_2003_2021_brick.tif"), format="GTiff", bylayer=TRUE, overwrite=TRUE)
+# Save raster brick
+ndvi_filenames <- paste0(new_names,".tif")
+for(i in 1:length(ndvi_filenames)) {
+  single_band <- raster(season_ndvi, layer = i)
+  writeRaster(single_band,ndvi_filenames[i], overwrite=TRUE)
+}
 
-
-
-
+# Method 2 Use the purrr map method
+library(purrr)
+ndvi_filenames <- paste0(new_names,".tif")
+layers_list <- map(1:length(ndvi_filenames), ~raster(season_ndvi, layer = .))
+# use walk2 rather than map2 because we don't want the output of writeRaster
+walk2(layers_list, ndvi_filenames, writeRaster,overwrite=TRUE)
 
 
 ndvi_major_minor_season <-split(df_ndvi_2,list(df_ndvi_2$year,df_ndvi_2$season, df_ndvi_2$img_path))
