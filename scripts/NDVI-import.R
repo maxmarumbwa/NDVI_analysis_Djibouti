@@ -104,8 +104,6 @@ r2019<- stack(paste0(wd, feb_jun_2019$img_date)) %>% raster::crop(raster::extent
 r2020<- stack(paste0(wd, feb_jun_2020$img_date)) %>% raster::crop(raster::extent(shp)) %>% raster::mask(shp) %>% mean(na.rm = TRUE)
 r2021<- stack(paste0(wd, feb_jun_2021$img_date)) %>% raster::crop(raster::extent(shp)) %>% raster::mask(shp) %>% mean(na.rm = TRUE)
 
-# TEST
-
 # Seasonal NDVI raster stack ,  Set pixels outside the mask to null
 season_ndvi <- stack(r2003,r2004,r2005,r2006, r2007,r2008,r2009,r2010,r2011,r2012,r2013,r2014,r2015,r2016,r2017,r2018,r2019,r2020,r2021)
 #season_ndvi <- stack(r2002,r2003,r2004,r2005,r2006, r2007,r2008,r2009,r2010,r2011,r2012,r2013,r2014,r2015,r2016,r2017,r2018,r2019,r2020,r2021)
@@ -117,14 +115,49 @@ names(season_ndvi) <-  new_names
 #levelplot(season_ndvi)
 summary(season_ndvi)
 
+
+# reclassify by thresholding NDVI
+rcl <- matrix(c(-1,0,0, 0.1,0.2,2, 0.3,1,3), ncol = 3, byrow = TRUE) 
+rcl
+recl <- reclassify(season_ndvi[[8]], rcl = rcl)
+plot(recl)
+
+
+
+###########- Animate raster stack
+a=animate(season_ndvi, pause =0.25)
+anim_save(a,filename="1111111111_animation.gif")
+plot(season_ndvi)
+
+# Plot the maps#
+library(rasterVis)
+## Set up color gradient with 100 values between 0.0 and 1.0
+breaks <- seq(0.1, 0.5, by=0.1)
+cols <- colorRampPalette(c("black", "lightgreen"))(length(breaks)-1)
+#cols <- colorRampPalette(c("red", "yellow", "lightgreen"))(length(breaks)-1)
+levelplot(season_ndvi,at=breaks, col.regions=cols,main ="Area coveved by drought (< Decile 2)", xlab="", ylab="")
+
+
+
+
 # Calculate average
 season_avg <- max(season_ndvi,na.rm = TRUE)
 season_avg[season_avg > 0.1]<- NA # Set pixels outside the mask to null
 
+
+#----------------stdev
+season_avg <- stdev(season_ndvi,na.rm = TRUE)
+a = raster("NDVI10_MODAPE10_DJIBOUTI (Standard Deviation).tif")
+summary(a)
+a[a <  0.1056049]<- 12322
+plot(a<12322)
+plot(shp, add=TRUE)
+
 #-------------------------- print image stats
 summary(season_ndvi)
 summary(season_avg)
-
+r2021<- stack(paste0(wd, feb_jun_2021$img_date)) %>% raster::crop(raster::extent(shp)) %>% raster::mask(shp)
+summary(r2021)
 #-------------------- Save the seasonal avg and the longterm avg ndvi ------------------------#
 #-------------------- Save the seasonal avg and the longterm avg ndvi ------------------------#
 raster::writeRaster(season_avg, filename= here("out", "tif","NDVI_max_Feb_Jun_2003_2021.tif"), format="GTiff", bylayer=TRUE, overwrite=TRUE)
@@ -141,6 +174,28 @@ ndvi_filenames <- paste0(new_names,".tif")
 layers_list <- map(1:length(ndvi_filenames), ~raster(season_ndvi, layer = .))
 # use walk2 rather than map2 because we don't want the output of writeRaster
 walk2(layers_list, ndvi_filenames, writeRaster,overwrite=TRUE)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 ndvi_major_minor_season <-split(df_ndvi_2,list(df_ndvi_2$year,df_ndvi_2$season, df_ndvi_2$img_path))
